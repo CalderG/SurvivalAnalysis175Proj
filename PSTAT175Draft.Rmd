@@ -1,0 +1,60 @@
+---
+title: "Final Project"
+author: "Zifeng(Robin) Zhan"
+date: "2025-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(survminer)
+```
+
+```{r}
+data("colon")
+View(colon)
+```
+
+```{r}
+library(survival)
+library(survminer)
+data("colon")
+View(colon)
+# Filter the data for death event
+death_data <- colon[colon$etype == 2, ]
+
+# Create a survival object
+surv_object_death <- Surv(time = death_data$time, event = death_data$status)
+
+# Fit the Kaplan-Meier model for the death event
+km_fit_death <- survfit(surv_object_death ~ 1)
+
+# Plot the Kaplan-Meier curve for death events
+ggsurvplot(km_fit_death, data = death_data, 
+           title = "Kaplan-Meier Survival Curve for Death Events")
+
+
+```
+```{r}
+# data for recurrence event
+recurrence_data <- colon[colon$etype == 1, ]
+
+# survival object
+surv_object_recurrence <- Surv(time = recurrence_data$time, 
+                               event = recurrence_data$status)
+
+# Fit the Kaplan-Meier model for recurrence events
+km_fit_recurrence <- survfit(surv_object_recurrence ~ 1)
+
+# Plot the Kaplan-Meier survival curve for recurrence events with a title
+ggsurvplot(km_fit_recurrence, 
+           data = recurrence_data, 
+           palette = "#00BFC4", # Customize the color
+           title = "Kaplan-Meier Survival Curve for Recurrence Events")
+
+```
+
+
+
+
