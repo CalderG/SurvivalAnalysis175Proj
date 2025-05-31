@@ -1,0 +1,178 @@
+---
+title: "Final Project"
+author: "Zifeng(Robin) Zhan"
+date: "2025-04-29"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(survminer)
+library(dplyr)
+library(purrr)
+library(broom)
+```
+
+# Inspect Raw Data
+```{r}
+# Load data set
+colon <- survival::colon
+## quick structure
+str(colon, give.attr = FALSE)
+
+## how much is actually missing?
+na_totals <- sapply(colon, \(x) sum(is.na(x)))
+na_totals
+round(na_totals[na_totals > 0] / nrow(colon) * 100, 2)
+# nodes has 1.94% missing value and differ has 2.48% missing values
+# missingness is small, delete the obs
+```
+
+```{r}
+# Delete rows with NA
+colon <- colon[complete.cases(colon), ]
+
+# Convert integer to factor
+colon_clean <- colon %>%
+  mutate(sex = factor(sex, labels = c("Female", "Male")),
+         obstruct = as.factor(obstruct),
+         perfor = as.factor(perfor),
+         adhere = as.factor(adhere),
+         differ = factor(differ, 1:3, labels = c("well", "moderate", "poor")),
+         node4 = as.factor(node4),
+         surg = factor(surg, 0:1, labels = c("short", "long")),
+         extent = as.factor(extent),
+         etype = as.factor(etype))
+```
+ 
+# Death Event
+```{r}
+# Data set for death event
+# Filter the data for death event
+colon_death <- colon_clean[colon_clean$etype == 2, ]
+## ensure one row for each id
+stopifnot(all(!duplicated(colon_death$id)))
+```
+
+## KP
+```{r}
+# Fit the Kaplan-Meier model for the death event
+km_fit_death <- survfit(Surv(time, status) ~ 1, data = colon_death)
+
+# Plot the Kaplan-Meier curve for death events
+ggsurvplot(km_fit_death, data = colon_death, 
+           title = "Kaplan-Meier Survival Curve for Death Events",
+           xlab = "Time Until Death (Days)",
+           surv.median.line = 'hv',
+           break.time.by = 500)
+
+# Median survival time
+Death_med <- surv_median(km_fit_death)
+print(Death_med)
+```
+
+The Kaplan-Meier curve declines slowly and almost linearly over the $3000$ days 
+follow-up and the median survival time is $2593$ days. At the beginning of the 
+study before one year (365 days), the survival probability is roughly above $90\%$, 
+which indicate that patients in the study begin with a near-perfect chance of 
+remaining alive. Also, the numerous tick marks in the late tail indicate that 
+many individuals were censored alive at the later stage of the study, which is 
+common because it is hard to follow-up for a long period. 
+
+## Cox
+```{r}
+# Coxph model with rx(treatment) as covariate
+cox_death <- coxph(Surv(time, status) ~ rx, data = colon_death)
+# Create fit for different treatment
+fit_death <- survfit(cox_death, newdata = data.frame(rx = c("Obs", "Lev", "Lev+5FU")))
+
+# Plot fit for coxph
+ggsurvplot(fit_death, data = colon_death, conf.int = TRUE, 
+           ylab = "Survival Probability", 
+           xlab = "Time Until Death (Days)", 
+           title = "Coxph of Death Event by Treatment",
+           legend.title = "Treatment",
+           legend.lab = levels(colon_death$rx),
+           break.time.by = 500)
+
+# median survival time
+cox_med <- surv_median(fit_death)
+print(cox_med)
+
+# Summary of PH model
+summary(cox_death)
+
+```
+This plot show the survival curves for three treatment after fitting a Cox model 
+with only treatment (`rx`) as the covariate. `Lev+5FU` (blue) curve locate 
+above the other two curves, which might indicate that `Lev+5FU` can increase 
+patients' survival rate. And the its survival probability decrease from $1$ and 
+end above $0.5$, show that most of patient survive after the study. 
+
+`Lev` (green) and `obs` (red) lines looks similar. The median survival time for 
+`obs` is $2052$ days and for `Lev` is $2257$ days greater than `obs`. $95\%$ 
+confidence interval of median survival time for `obs` is ($1550$, $2718$) and the 
+lower bound for confidence interval for `Lev` is $1767$. Since the two confidence 
+interval is overlap, there is not statistically significant different between 
+the median survival time of `obs` and `Lev`. 
+
+Since the $p$-value for treatment `rx=Lev+5FU` is $0.00157$ less than 
+$\alpha=0.05$, there is sufficient evidence to conclude that `Lev+5FU` 
+has significant impact on the survival time of patients. 
+
+## AIC
+```{r}
+death_cox1.1 <- coxph(Surv(time, status) ~ obstruct, data = colon_death)
+death_cox1.2 <- coxph(Surv(time, status) ~ adhere, data = colon_death)
+death_cox1.3 <- coxph(Surv(time, status) ~ node4, data = colon_death)
+death_cox1.4 <- coxph(Surv(time, status) ~ differ, data = colon_death)
+death_cox1.5 <- coxph(Surv(time, status) ~ extent, data = colon_death)
+death_cox1.6 <- coxph(Surv(time, status) ~ surg, data = colon_death)
+death_cox1.7 <- coxph(Surv(time, status) ~ perfor, data = colon_death)
+death_cox1.8 <- coxph(Surv(time, status) ~ age, data = colon_death)
+death_cox1.9 <- coxph(Surv(time, status) ~ sex, data = colon_death)
+AIC(death_cox1.1, death_cox1.2, death_cox1.3, death_cox1.4, death_cox1.5, 
+    death_cox1.6, death_cox1.7, death_cox1.8,death_cox1.9)
+```
+```{r}
+# List of Covariate to test
+uni_vars <- c("obstruct", "adhere", "nodes", "node4", "differ",
+              "extent", "surg", "perfor", "age", "sex")
+
+## 2.  Build one model per variable
+uni_models <- map(uni_vars, \(v)
+  coxph(as.formula(paste("Surv(time, status) ~", v)),
+        data = colon_death)
+) |> set_names(uni_vars)          # keep names for later access
+
+## 3.  Grab AIC 
+aic_tbl <- map_dbl(uni_models, AIC) |>
+           sort() |>
+           round(2)
+
+aic_tbl
+```
+
+```{r}
+# List of Covariate to test
+uni_vars2 <- c("obstruct", "adhere", "differ",
+              "extent", "surg", "perfor", "age", "sex")
+
+## 2.  Build one model per variable
+uni_models2 <- map(uni_vars2, \(v)
+  coxph(as.formula(paste("Surv(time, status) ~ node4 + ", v)),
+        data = colon_death)
+) |> set_names(uni_vars2)          # keep names for later access
+
+## 3.  Grab AIC 
+aic_tbl2 <- map_dbl(uni_models2, AIC) |>
+           sort() |>
+           round(2)
+
+aic_tbl2
+```
+
+
+
+
