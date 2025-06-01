@@ -32,8 +32,13 @@ colon_clean <- colon %>%
          adhere = as.factor(adhere),
          node4 = as.factor(node4),
          surg = as.factor(surg),
-         extent = as.factor(extent))
+         extent = as.factor(extent)) %>%
+  na.omit()
 colon_clean
+
+sum(colon_clean$rx == "Lev+5FU")
+sum(colon_clean$rx == "Lev")
+sum(colon_clean$rx == "Obs")
 
 ```
 
@@ -62,6 +67,51 @@ test_ph <- cox.zph(cox_model)
 test_ph
 # age returns p-value of 0.93(does not violate coxph assumption)
 ```
+
+## Counting Process 
+```{r}
+library(dplyr)
+colon_clean$start <- 0
+colon_clean$stop <- colon_clean$time
+
+# splitting dataset by etype
+rec <- colon_clean %>% filter(etype == 1)
+death <- colon_clean %>% filter(etype == 2)
+
+
+# adding a start and stop for rec
+rec <- rec %>%
+  mutate(start = 0,
+         stop = time)
+
+# take the id and rec_time of rec dataset and merge into death by id
+# change death start time and stop time
+death <- death %>%
+  left_join(rec %>% select(id, rec_time = time), by = "id") %>%
+  mutate(
+    start = rec_time,
+    stop = time
+  )
+
+# merge the rec and death as the new dataset 
+# remove rec_time(helper variable)
+
+colon_clean <- bind_rows(rec, death) %>%
+  arrange(id) %>%
+  select(-rec_time) %>%
+  mutate(start = if_else(start == stop, 0, start))
+
+# remove rownames(idk why but it was messy)
+rownames(colon_clean) <- NULL
+
+
+colon_clean
+
+cox_cp <- coxph(Surv(start, stop, status) ~ rx + extent + nodes, data = colon_clean)
+
+summary(cox_cp)
+```
+
 
 
 
