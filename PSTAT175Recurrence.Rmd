@@ -1,0 +1,260 @@
+---
+title: "PSTAT175 - Final Project - Part 1 - Recurrence"
+author: "Zifeng(Robin) Zhan, Calder Glass, Kotaro Ito"
+date: "2025-04-29"
+output: html_document
+---
+
+We used a significance level of $\alpha = 0.05$ as the critical value.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(survminer)
+```
+
+```{r}
+data("colon")
+View(colon)
+```
+
+```{r}
+library(survival)
+library(survminer)
+library(dplyr)
+library(tidyverse)
+data("colon")
+View(colon)
+
+sum(is.na(colon))
+
+# There are 82 missing observations - accounts for 4.4% of the data, safe enough to remove those observations
+
+colon = tibble(colon)
+
+colon <- colon %>% 
+  drop_na()
+
+# Filter the data for death event
+death_data <- colon[colon$etype == 2, ]
+
+# Create a survival object
+surv_object_death <- Surv(time = death_data$time, event = death_data$status)
+
+# Fit the Kaplan-Meier model for the death event
+km_fit_death <- survfit(surv_object_death ~ 1)
+
+# Plot the Kaplan-Meier curve for death events
+ggsurvplot(km_fit_death, data = death_data, 
+           title = "Kaplan-Meier Survival Curve for Death Events")
+
+
+```
+```{r}
+# data for recurrence event
+recurrence_data <- colon[colon$etype == 1, ]
+
+# survival object
+surv_object_recurrence <- Surv(time = recurrence_data$time, 
+                               event = recurrence_data$status)
+
+# Fit the Kaplan-Meier model for recurrence events
+km_fit_recurrence <- survfit(surv_object_recurrence ~ 1)
+
+# Plot the Kaplan-Meier survival curve for recurrence events with a title
+ggsurvplot(km_fit_recurrence, 
+           data = recurrence_data, 
+           palette = "#00BFC4", # Customize the color
+           title = "Kaplan-Meier Survival Curve for Recurrence Events")
+
+```
+
+
+Then we checked if the Cox Proportional Hazards assumption was violated or not.
+
+```{r}
+
+# Factor some of the covariates first in order to do the cox ph tests:
+
+colon <- colon %>% 
+  mutate_at(c("sex", "obstruct", "perfor", "adhere", "differ", "etype", "node4", "surg", "extent"), factor)
+
+colonSurv = Surv(colon$time, colon$status)
+rxFit = survfit(colonSurv ~ rx, data = colon)
+sexFit = survfit(colonSurv ~ sex, data = colon)
+obstructFit = survfit(colonSurv ~ obstruct, data = colon)
+perforFit = survfit(colonSurv ~ perfor, data = colon)
+differFit = survfit(colonSurv ~ differ, data = colon)
+node4Fit = survfit(colonSurv ~ node4, data = colon)
+surgFit = survfit(colonSurv ~ surg, data = colon)
+extentFit = survfit(colonSurv ~ extent, data = colon)
+ggsurvplot(rxFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients between treatments")
+ggsurvplot(sexFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients between sexes")
+ggsurvplot(obstructFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients given an obstruction or not")
+ggsurvplot(perforFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients given a perforation or not")
+ggsurvplot(differFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients between differentials")
+ggsurvplot(node4Fit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients given 4 positive lymph nodes or not")
+ggsurvplot(surgFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients given classification of time between intial surgery and registration for the study")
+ggsurvplot(extentFit, data = colon, fun = "cloglog", conf.int = FALSE, censor.shape = 4, xlab = "Time in Days until either Recurrence of Cancer or Death", ylab = "Survival Probability", title = "Estimated Survival Probability of Colon Cancer Patients between descriptions of tumor spreads")
+
+
+```
+The two etypes are relatively parallel, with few intersections until the very end of the study. As a result, it can be concluded that the Cox Proportional Hazards Assumption is not violated.
+
+Then we started looking for the best model, given that the observations were the ones where only the recurrence of colon cancer occurred and that we always start with the treatment covariate.
+
+For the AIC tests, we also did not include the covariates *study* and *id*. The *id* covariate is the same as the observation number, it doesn't have contextual significance to the event of relapse or death from colon cancer. The *study* covariate is not included as all of the subjects are from the same study.
+
+```{r}
+# Level 1:
+# list of covariates to put into the modeles
+recurrence_covariates = c("obstruct", "adhere", "nodes", "node4", "differ", "extent", "surg", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models = map(recurrence_covariates, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates)
+
+aic_lvl1 = map_dbl(recurrence_models, AIC) |>
+  sort()
+
+aic_lvl1
+
+```
+The model with the *node4* covariate, the binary variable for whether the patient had more than 4 positive lymph nodes, had the lowest AIC.
+
+Since the *nodes* covariate and *node4* covariate are closely related, the *nodes* covariate will be skipped.
+
+Therefore, forward selection proceeds with the above covariate.
+
+```{r}
+# Level 2:
+# list of covariates to put into the models
+recurrence_covariates2 = c("obstruct", "adhere", "differ", "extent", "surg", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models2 = map(recurrence_covariates2, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates2)
+
+aic_lvl2 = map_dbl(recurrence_models2, AIC) |>
+  sort()
+
+aic_lvl2
+
+```
+The model with the *extent* covariate, the description of the local spread of the tumor, had the lowest AIC.
+
+Therefore, forward selection proceeds with the above covariate.
+
+```{r}
+# Level 3:
+# list of covariates to put into the models
+recurrence_covariates3 = c("obstruct", "adhere", "differ", "surg", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models3 = map(recurrence_covariates3, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates3)
+
+aic_lvl3 = map_dbl(recurrence_models3, AIC) |>
+  sort()
+
+aic_lvl3
+
+```
+
+The model with the *surg* covariate, the time from initial surgery to registration in the study, had the lowest AIC.
+
+Therefore, forward selection proceeds with the above covariate.
+
+```{r}
+# Level 4:
+# list of covariates to put into the models
+recurrence_covariates4 = c("obstruct", "adhere", "differ", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models4 = map(recurrence_covariates4, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + surg + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates4)
+
+aic_lvl4 = map_dbl(recurrence_models4, AIC) |>
+  sort()
+
+aic_lvl4
+
+```
+The model with the *differ* covariate, the description of the removed cancer cells from the colon, had the lowest AIC.
+
+Therefore, forward selection proceeds with the above covariate.
+
+```{r}
+# Level 5:
+# list of covariates to put into the models
+recurrence_covariates5 = c("adhere", "obstruct", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models5 = map(recurrence_covariates5, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + surg + differ + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates5)
+
+aic_lvl5 = map_dbl(recurrence_models5, AIC) |>
+  sort()
+
+aic_lvl5
+
+```
+
+The model with the *obstruct* covariate, the binary variable for whether the cancer had adhered to other organs, had the lowest AIC.
+
+Therefore, forward selection proceeds with the above covariate.
+
+```{r}
+# Level 6:
+# list of covariates to put into the models
+recurrence_covariates6 = c("adhere", "perfor", "sex", "age")
+
+# building a model per covariate by pasting the given covariate into the formula
+
+# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
+
+recurrence_models6 = map(recurrence_covariates6, \(v) coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + surg + differ + obstruct + ", v)), data = recurrence_data)) |> set_names(recurrence_covariates6)
+
+aic_lvl6 = map_dbl(recurrence_models6, AIC) |>
+  sort()
+
+aic_lvl6
+
+```
+None of the AICs shown above are less than the previous model, so the chosen model has the following covariates: *obstruct*, *surg*, *extent*, *node4*, and *differ*.
+
+Next, the model was summarized in order to conclude relationships between the different levels of covariates, such as the treatment covariate and the differentiation covariate.
+```{r}
+summary(coxph(Surv(time, status) ~ rx + node4 + extent + surg + differ + obstruct, data = recurrence_data))
+```
+
+From the likelihood ratio test, the p-value is less than $2e-16$, which is much less than the critical value/significance level of $0.05$. 
+
+The hazard rate for patients who took the treatment with just Levamisole is $1.163\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.6065$, $39.35\%$ less hazardous than no treatment at all.
+
+Patients who had more than 4 positive lymph nodes had over double the hazard rate of those who didn't.
+
+As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $3.64$ times as likely to suffer a recurrence of colon cancer.
+
+Patients with a long time from their initial surgery to registration in the study had a 25% greater hazard rate than those with a shorter time interval.
+
+Patients whose removed cancer cells were "moderately differentiated" had a $3.24\%$ lower hazard rate than patients whose cancer cells were "well differentiated", while those with "poorly differentiated" cells had $31.25\%$ higher hazard rate compared to same base group.
+
+Patients whose colons were obstructed by a tumor had a $23.39\%$ higher hazard rate compared to those who were obstruction-free.
+
+With the following exceptions of the treatment level that included Fluoracil and Levamisole, the node level of patients who had more than 4 positive lymph nodes, and the long time interval level between initial surgery to registering for the study, all of the other covariates' levels had 95% confidence intervals which contained the baseline $1$. This suggests that the most significant levels of covariates in their effect on the hazard rate of the recurrence of colon cancer are Levamisole + Fluoracil as a treatment, over 4 positive lymph nodes, spread of cancer to the contiguous strucuters, and a long time between initial surgery to registration for the study.
+
+
+
+
+
