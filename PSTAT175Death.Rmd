@@ -106,45 +106,43 @@ summary(cox_death)
 ```
 This plot show the survival curves for three treatment after fitting a Cox model 
 with only treatment (`rx`) as the covariate. `Lev+5FU` (blue) curve locate 
-above the other two curves, which might indicate that `Lev+5FU` can increase 
+above the other two curves, which might indicate that Levamisole+5-FU (`Lev+5FU`) can increase 
 patients' survival rate. And the its survival probability decrease from $1$ and 
 end above $0.5$, show that most of patient survive after the study. 
 
-`Lev` (green) and `obs` (red) lines looks similar. The median survival time for 
-`obs` is $2052$ days and for `Lev` is $2257$ days greater than `obs`. $95\%$ 
-confidence interval of median survival time for `obs` is ($1550$, $2718$) and the 
-lower bound for confidence interval for `Lev` is $1767$. Since the two confidence 
-interval is overlap, there is not statistically significant different between 
-the median survival time of `obs` and `Lev`. 
+`Lev` (green) and `obs` (red) lines do not show much difference. 
+The median survival time for `obs` is $2052$ days and for `Lev` is $2257$ days 
+greater than `obs`. $95\%$ confidence interval of median survival time for `obs` 
+is ($1550$, $2718$) and the lower bound for confidence interval for `Lev` is 
+$1767$. Since the two confidence interval is overlap, there is not statistically 
+significant different between the median survival time of `obs` and `Lev`. 
 
-Since the $p$-value for treatment `rx=Lev+5FU` is $0.00157$ less than 
-$\alpha=0.05$, there is sufficient evidence to conclude that `Lev+5FU` 
+Since the $p$-value of likelihood ratio test is $0.003$ less than 
+$\alpha=0.05$, there is sufficient evidence to conclude that `rx`
 has significant impact on the survival time of patients. 
+
+Since hazard ratio for `Lev` is $0.9392$, patients on `Lev` has $6.08\%$ lower 
+hazard rate than observation. Also the $95\%$ confidence interval for `Lev` is 
+($0.7524$, $1.1725$) including $1$. Thus, Levamisole does not have significant impact on 
+the survival probability.
+
+The hazard ratio for `Lev+5FU` is $0.6819$, `Lev+5FU` has $32\%$ lower hazard rate 
+than `Observation`. Also, $95%$ confidence interval ($0.5379$, $0.8646$) does 
+not include $1$. Treatment `Lev+5FU` significantly lower the hazard rate and 
+increase the survival probability of patient. 
 
 ## AIC
 ```{r}
-death_cox1.1 <- coxph(Surv(time, status) ~ obstruct, data = colon_death)
-death_cox1.2 <- coxph(Surv(time, status) ~ adhere, data = colon_death)
-death_cox1.3 <- coxph(Surv(time, status) ~ node4, data = colon_death)
-death_cox1.4 <- coxph(Surv(time, status) ~ differ, data = colon_death)
-death_cox1.5 <- coxph(Surv(time, status) ~ extent, data = colon_death)
-death_cox1.6 <- coxph(Surv(time, status) ~ surg, data = colon_death)
-death_cox1.7 <- coxph(Surv(time, status) ~ perfor, data = colon_death)
-death_cox1.8 <- coxph(Surv(time, status) ~ age, data = colon_death)
-death_cox1.9 <- coxph(Surv(time, status) ~ sex, data = colon_death)
-AIC(death_cox1.1, death_cox1.2, death_cox1.3, death_cox1.4, death_cox1.5, 
-    death_cox1.6, death_cox1.7, death_cox1.8,death_cox1.9)
-```
-```{r}
+# 1st Covariate
 # List of Covariate to test
 uni_vars <- c("obstruct", "adhere", "nodes", "node4", "differ",
               "extent", "surg", "perfor", "age", "sex")
 
 ## 2.  Build one model per variable
 uni_models <- map(uni_vars, \(v)
-  coxph(as.formula(paste("Surv(time, status) ~", v)),
+  coxph(as.formula(paste("Surv(time, status) ~ rx + ", v)),
         data = colon_death)
-) |> set_names(uni_vars)          # keep names for later access
+) |> set_names(uni_vars)          
 
 ## 3.  Grab AIC 
 aic_tbl <- map_dbl(uni_models, AIC) |>
@@ -152,26 +150,118 @@ aic_tbl <- map_dbl(uni_models, AIC) |>
            round(2)
 
 aic_tbl
+# 1st = node4
 ```
 
 ```{r}
-# List of Covariate to test
+# 2nd Covariate
 uni_vars2 <- c("obstruct", "adhere", "differ",
               "extent", "surg", "perfor", "age", "sex")
 
-## 2.  Build one model per variable
 uni_models2 <- map(uni_vars2, \(v)
-  coxph(as.formula(paste("Surv(time, status) ~ node4 + ", v)),
+  coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + ", v)),
         data = colon_death)
-) |> set_names(uni_vars2)          # keep names for later access
+) |> set_names(uni_vars2)          
 
-## 3.  Grab AIC 
 aic_tbl2 <- map_dbl(uni_models2, AIC) |>
            sort() |>
            round(2)
 
 aic_tbl2
+# 2nd = extent
 ```
+
+
+```{r}
+# 3rd Covariate
+uni_vars3 <- c("obstruct", "adhere", "differ",
+               "surg", "perfor", "age", "sex")
+
+uni_models3 <- map(uni_vars3, \(v)
+  coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + ", v)),
+        data = colon_death)
+) |> set_names(uni_vars3)          
+
+aic_tbl3 <- map_dbl(uni_models3, AIC) |>
+           sort() |>
+           round(2)
+
+aic_tbl3
+# 3rd  = surg
+```
+
+```{r}
+# 4th Covariate
+uni_vars4 <- c("obstruct", "adhere", "differ",
+               "perfor", "age", "sex")
+
+uni_models4 <- map(uni_vars4, \(v)
+  coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + surg + ", v)),
+        data = colon_death)
+) |> set_names(uni_vars4)          
+
+aic_tbl4 <- map_dbl(uni_models4, AIC) |>
+           sort() |>
+           round(2)
+
+aic_tbl4
+# 4th = differ
+```
+
+```{r}
+# 5th Covariate
+uni_vars5 <- c("obstruct", "adhere", 
+               "perfor", "age", "sex")
+
+uni_models5 <- map(uni_vars5, \(v)
+  coxph(as.formula(paste("Surv(time, status) ~ rx + node4 + extent + surg + 
+                          differ + ", v)),
+        data = colon_death)
+) |> set_names(uni_vars5)          
+
+aic_tbl5 <- map_dbl(uni_models5, AIC) |>
+           sort() |>
+           round(2)
+
+aic_tbl5
+```
+
+We selected extra covariates by forward AIC while always keeping treatment 
+(`rx`) in the model. Adding `node4`, `extent`, and `surg` each cut AIC by $> 2$ 
+points, and `differ` lowered it by another 2.4; `obstruct` reduced AIC 
+by $< 2$. Because 2 points is the standard threshold for a meaningful gain, 
+we stopped at `rx + node4 + extent + surg + differ`. This captures nearly all 
+improvement in fit without adding unnecessary parameters.
+
+# Full Model 
+```{r}
+full_death <- coxph(Surv(time, status) ~ node4 + extent + 
+                      surg + differ + rx, data = colon_death)
+summary(full_death)
+```
+
+After adjusting for the four strongest prognostic factors—`node4`, `extent`, `surg`, 
+and `differ`—the overall likelihood-ratio test is highly significant ($p < 2 × 10^{-16}$), 
+confirming that the set of covariates is statistically significant to explain variation 
+in survival model. From the summary of the cox proptional model, we can observe 
+the following effect of treatment and prognostic covariate:
+
+Treatment effect:  
+The combination therapy `Levamisole+5-FU`
+has statistically significant survival benefit, reducing the hazard of death by 
+approximately $31\%$ with (HR $=0.689$, $95\%$ CI $0.54–0.88$). `Levamisole` alone 
+does not show significant benefit because the $95\%$ CI ($0.7638-1.1954$) include 
+$1$.
+
+Prognostic covariates:  
+`node4`: having more than $4$ positive lymph nodes has hazard ratio of $2.4764$ 
+and significantly increase the hazard risk by $147\%$ compared to less than $4$ 
+lymph nodes ($95\%$ CI $2.03–3.02$).  
+`extent`: Contiguous structures of local spread (`extent` = 4) raises the hazard by $377\%$ 
+compared to to submucosa of local spread (`extent`=1) (HR = 4.77, 95 % CI 1.96–15.9).  
+`surg`: Long time from surgery to registration (`surg` $=1$) also raise the hazard 
+rate by $26.18\%$ compared to shorter time (`surg`$=0$) 
+(HR $= 1.26$, $95\%$ CI $1.02–1.55$).
 
 
 
