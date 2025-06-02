@@ -429,7 +429,23 @@ None of the models at this level have an AIC lower than the previous model, so t
 
 
 Next, the model was summarized in order to conclude relationships between the different levels of covariates, such as the treatment covariate and the differentiation covariate.
+
 ```{r}
 summary(coxph(Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + adhere + obstruct + differ, data = recurrence_data))
 ```
 
+From the likelihood ratio test, the p-value is less than $2e-16$, which is much less than the critical value/significance level of $0.05$. 
+
+The hazard rate for patients who took the treatment with just Levamisole is $2.208\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.6062$, $39.38\%$ less hazardous than no treatment at all.
+
+Patients who had more than 4 positive lymph nodes had over double the hazard rate of those who didn't.
+
+As the spread of the tumor developed from muscles to contiguous structures, the hazard ratio to those who only had submucosa development increased to as high as $3.3764$ times as likely to suffer a recurrence of colon cancer.
+
+Patients with a long time from their initial surgery to registration in the study had a 25% greater hazard rate than those with a shorter time interval.
+
+Patients whose removed cancer cells were "moderately differentiated" had a $3.86\%$ lower hazard rate than patients whose cancer cells were "well differentiated", while those with "poorly differentiated" cells had $28.41\%$ higher hazard rate compared to same base group.
+
+Patients whose colons were obstructed by a tumor had a $23.37\%$ higher hazard rate compared to those who were obstruction-free.
+
+With the following exceptions of the treatment level that included Fluoracil and Levamisole, the node level of patients who had more than 4 positive lymph nodes, and the long time interval level between initial surgery to registering for the study, all of the other covariates' levels had 95% confidence intervals which contained the baseline $1$. This suggests that the most significant levels of covariates in their effect on the hazard rate of either recurrence or death from colon cancer are Levamisole + Fluoracil as a treatment, over 4 positive lymph nodes, spread of cancer to the contiguous structures, and a long time between initial surgery to registration for the study is the best fit for the data as a whole.
