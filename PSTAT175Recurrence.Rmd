@@ -34,6 +34,8 @@ colon <- colon %>%
 ```
 
 Two additional covariates will be introduced, start and stop, in order to build a counting process model later on.
+
+Covariates that are either binaries or have very few levels, 3 to 4 maximum, are factored so that the effect of each level of the covariates can be summarized.
 ```{r}
 
 # Factor some of the covariates first in order to do the cox ph tests:
@@ -65,24 +67,25 @@ ggsurvplot(km_fit_recurrence,
 
 ```
 
+
 Then we checked if the Cox Proportional Hazards assumption was violated or not in terms of the treatment covariate.
+
+This is checked through a survival plot of the curves using the "cloglog" value for the fun parameter and a plot of the coxzph test.
+
+If the p-value for the coxzph test for the treatment covariate is less than $0.05$, then the cox proportional hazards model is not ok.
 
 ```{r}
 recurrence_obj = coxph(Surv(time, status) ~ rx, data = recurrence_data)
 recurrence_fit = survfit(recurrence_obj, newdata = data.frame(rx= c("Obs", "Lev", "Lev+5FU")))
 ggsurvplot(recurrence_fit, data = recurrence_data, fun = "cloglog", conf.int = FALSE, title = "Comparison of Survival Functions for Different Treatments", xlab = "Time until Recurrence of Colon Cancer (days)", ylab = "Survival Probability")
+
+recurrence_gof_test = cox.zph(recurrence_obj, transform = "identity")
+
+plot(recurrence_gof_test)
 ```
 The survival curves are fairly parallel, so it's reasonable to assume that the Cox Proportional Hazards Assumption for the recurrence portion of the data is not violated by the treatment covariate.
 
-Covariates that are either binaries or have very few levels, 3 to 4 maximum, are factored so that the effect of each level of the covariates can be summarized.
-
-```{r}
-
-# Factor some of the covariates first in order to do the cox ph tests:
-
-colon <- colon %>% 
-  mutate_at(c("sex", "obstruct", "perfor", "adhere", "differ", "etype", "node4", "surg", "extent"), factor)
-```
+The curvature of the function is not monotonically increasing as time increases, so the Schoenfeld residuals are not related to survival time. Therefore, the PH assumption does hold for the *rx* covariate.
 
 AIC:
 
@@ -271,7 +274,25 @@ colon_counting = bind_rows(recurrence_data, death_data) %>%
 
 ```
 
+
 Now the colon dataset counts the time between the beginning to the first recurrence, the time between the recurrence to the next recurrence or death. 
+
+Then we checked if the Cox Proportional Hazards assumption was violated or not in terms of the treatment covariate.
+
+This is checked through a survival plot of the curves using the "cloglog" value for the fun parameter and a plot of the coxzph test.
+
+If the p-value for the coxzph test for the treatment covariate is less than $0.05$, then the cox proportional hazards model is not ok.
+
+```{r}
+counting_obj = coxph(Surv(start, stop, status) ~ rx, data = colon_counting)
+counting_fit = survfit(counting_obj, newdata = data.frame(rx= c("Obs", "Lev", "Lev+5FU")))
+ggsurvplot(counting_fit, data = colon_counting, fun = "cloglog", conf.int = FALSE, title = "Comparison of Survival Functions for Different Treatments", xlab = "Time until Recurrence or Death from Colon Cancer (days)", ylab = "Survival Probability")
+
+counting_gof_test = cox.zph(counting_obj, transform = "identity")
+
+plot(counting_gof_test)
+```
+The curvature of the function is not monotonically increasing as time increases, so the Schoenfeld residuals are not related to survival time. Therefore, the PH assumption does hold for the *rx* covariate for the merged dataset.
 
 Next, a cox proportional hazards model of this dataset will be constructed with the new time variables in the Survival object. Then, AIC + forward selection will find the most significant covariates for this model.
 
