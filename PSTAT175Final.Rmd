@@ -21,8 +21,7 @@ independent patients–$484$ men and $445$ women–were randomly assigned betwee
 and a control group: Levamisole, Levamisole and Fluorouracil, and control(denoted as `Lev`,
 `Lev+5FU`, and `Obs` in the dataset). "Levamisole is a low-toxicity compound that was originally
 used to treat worm infestations in animals", while "5-FU is a moderately toxic chemotherapy agent"
-used to treat cancer.^[colon: Chemotherapy for Stage B/C colon cancer. Colon Cancer. Retrieved May 1st, 2025, 
-from https://rdrr.io/cran/survival/man/colon.html]
+used to treat cancer.\footnote{\label{fn:colon}colon: Chemotherapy for Stage B/C colon cancer. Colon Cancer. Retrieved May 1st, 2025, from \url{https://rdrr.io/cran/survival/man/colon.html}}
 
 Patients were then observed until one of two events occurred: recurrence or
 death (denoted as “1” and “2” in its respective order under column `etype`). The time of
@@ -49,14 +48,14 @@ indicates that the tumor is limited to the inner lining of the colon and "4"  in
 tumor to nearby organs and tissues), `surg` ("1" indicates a long time between initial surgery and
 registering to the study while "0" indicates a short time), `node4` ("1" indicates a patient has more
 than four positive lymph nodes and "0" indicates four or less), and `etype` (recurrence or death
-event) of each patient.^[1]
+event) of each patient.\footnotemark[\value{footnote}]
 
 Taking all of the covariates we listed above into consideration, our aim is to determine
 whether or not a specific treatment has a significant effect on the survival of the patient. Our
 secondary objective is to assess which covariate(s) have a significant effect on the hazard risk. In
 the course of the analysis, we omit observations with N/A values, reducing our final dataset to
 888 independent patients. A five percent significance level ($0.05$) will be used to balance the risk
-of false positives and ensure adequate sensitivity to detect meaningful effects.
+of false positives to detect meaningful effects.
 
 # Model Fitting
 With the clinical context established and the relevant covariates explained, we begin to evaluate
