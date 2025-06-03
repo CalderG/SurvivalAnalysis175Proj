@@ -127,8 +127,8 @@ Taking all of the covariates we listed above into consideration, our aim is to d
 whether or not a specific treatment has a significant effect on the survival of the patient. Our
 secondary objective is to assess which covariate(s) have a significant effect on the hazard risk. In
 the course of the analysis, we omit observations with N/A values, reducing our final dataset to
-888 independent patients. A five percent significance level ($0.05$) will be used to balance the risk
-of false positives to detect meaningful effects.
+888 independent patients. On a deeper level, we are interested in whether the treatments are more effective after recurrence of colon cancer, and by how much relative to each other's hazard ratios. A five percent significance level ($0.05$) will be used to balance the risk
+of false positives to detect meaningful effects. 
 
 # Model Fitting
 With the clinical context established and the relevant covariates explained, we begin to evaluate
@@ -660,6 +660,7 @@ Now that the counting process model is fully setup, it can be evaluated to see i
 ```{r}
 summary(coxph(Surv(start,stop,status) ~ rx*strata(episode) + strata(node4) + extent + surg, data = colon_counting))
 ```
+## Conclusion
 
 From the summary, the model as a whole with the additional interaction between the given episode of colon cancer (time after recurrence vs time before recurrence) and the treatment covariate is statistically significant at a p-value of $8e-08$ vs $\alpha = 0.05$ for the critical value. 
 
@@ -674,13 +675,13 @@ The effect of just Levamisole on the hazard rate after recurrence of colon cance
 In either case, both treatments are much less effective after a recurrence of colon cancer.
 
 
-
+## Decide what you want to do with the paragraph below
 
 
 The main takeaway from the summary above is that the treatment of Levamisole + Fluoracil was $1.68$ times as effective as just Levamisole in the second time interval after recurrence to death in its hazard rate. This would suggest that for subjects who've just experienced a recurrence in colon cancer, the combined treatment of Levamisole and Fluoracil poses greater hazard risk of death than taking just Levamisole. 
 
 
-# Proptional Hazards Assumption
+# Proportional Hazards Assumption
 To verify that the Cox models we use are valid, we assessed the proportional-hazards 
 (PH) assumption. Our checking strategy combined (i) graphical inspection and 
 (ii) formal statistical testing. 
