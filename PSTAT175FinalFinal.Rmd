@@ -346,13 +346,13 @@ summary(full_recurrence)
 
 From the likelihood ratio test, the overall p-value is less than $2e-16$, which is much less than the critical value/significance level of $0.05$. 
 
-`rx`: The hazard rate for patients who took the treatment with just Levamisole is only $2.97\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.611$, $38.9\%$ less hazardous than no treatment at all.
+`rx`: The hazard rate for patients who took the treatment with just Levamisole is only $2.83\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.6107$, $38.93\%$ less hazardous than no treatment at all.
 
 `node4`: Patients who had more than 4 positive lymph nodes had over double the hazard rate of those who didn't.
 
-`extent`: As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $2.3137$ times as likely to suffer a recurrence of colon cancer.
+`extent`: As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $3.9795$ times as likely to suffer a recurrence of colon cancer.
 
-`surg`: Patients with a long time from their initial surgery to registration in the study had a $26.35\%$ greater hazard rate than those with a shorter time interval.
+`surg`: Patients with a long time from their initial surgery to registration in the study had a $26.56\%$ greater hazard rate than those with a shorter time interval.
 
 # Marginal Model: Death
 ## Kaplan-Meier Estimate for Death
@@ -661,13 +661,21 @@ Now that the counting process model is fully setup, it can be evaluated to see i
 summary(coxph(Surv(start,stop,status) ~ rx*strata(episode) + strata(node4) + extent + surg, data = colon_counting))
 ```
 
-From the summary, the model as a whole with the additional interaction between the given episode of colon cancer (time after recurrence vs time before recurrence) and the treatment covariate is statistically significant at a p-value of $3e-08$ vs $\alpha = 0.05$ for the critical value. 
+From the summary, the model as a whole with the additional interaction between the given episode of colon cancer (time after recurrence vs time before recurrence) and the treatment covariate is statistically significant at a p-value of $8e-08$ vs $\alpha = 0.05$ for the critical value. 
 
-*rx*: The hazard rate for patients who took the treatment with just Levamisole is only $6.68\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.5998$, $40.02\%$ less hazardous than no treatment at all.
+*rx*: The hazard rate for patients who took the treatment with just Levamisole is only $6.68\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.5973$, $40.27\%$ less hazardous than no treatment at all. It should also be noted that the confidence interval for only the Levamisole treatment has a 95% confidence interval of $(0.7472, 1.151)$, which includes the baseline of $1$, so it doesn't significantly decrease the hazard rate of colon cancer. However, the Levamisole + Fluoracil treatment has a 95% confidence interval of $(0.4707, 0.7508)$, which doesn't include the baseline of $1$, so it does significantly decrease the hazard rate of colon cancer.
 
-*extent*: As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $1.3899$ times as likely to suffer a recurrence of colon cancer.
+*extent*: As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $2.7274$ times as likely to suffer a recurrence of colon cancer.
 
-*surg*: Patients with a long time from their initial surgery to registration in the study had a $17.21\%$ greater hazard rate than those with a shorter time interval.
+*surg*: Patients with a long time from their initial surgery to registration in the study had a $16.06\%$ greater hazard rate than those with a shorter time interval.
+
+The effect of just Levamisole on the hazard rate after recurrence of colon cancer has a hazard ratio of $1.2446$ compared to Levamisole on the hazard rate before a recurrence of colon cancer. Surprisingly, the effect of both Levamisole and Fluoracil after recurrence of colon cancer has a hazard ratio of $2.0885$ compared to both drugs on the hazard rate before a recurrence of colon cancer.
+
+In either case, both treatments are much less effective after a recurrence of colon cancer.
+
+
+
+
 
 The main takeaway from the summary above is that the treatment of Levamisole + Fluoracil was $1.68$ times as effective as just Levamisole in the second time interval after recurrence to death in its hazard rate. This would suggest that for subjects who've just experienced a recurrence in colon cancer, the combined treatment of Levamisole and Fluoracil poses greater hazard risk of death than taking just Levamisole. 
 
