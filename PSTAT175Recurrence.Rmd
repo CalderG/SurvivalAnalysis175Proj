@@ -225,6 +225,7 @@ None of the AICs shown above are less than the previous model, so the chosen mod
 Next, the model was summarized in order to conclude relationships between the different levels of covariates, such as the treatment covariate and the differentiation covariate.
 ```{r}
 summary(coxph(Surv(time, status) ~ rx + node4 + extent + surg + differ + obstruct, data = recurrence_data))
+anova(coxph(Surv(time, status) ~ rx + node4 + extent + surg + differ + obstruct, data = recurrence_data))
 ```
 
 From the likelihood ratio test, the p-value is less than $2e-16$, which is much less than the critical value/significance level of $0.05$. 
@@ -242,6 +243,9 @@ Patients whose removed cancer cells were "moderately differentiated" had a $3.24
 Patients whose colons were obstructed by a tumor had a $23.39\%$ higher hazard rate compared to those who were obstruction-free.
 
 With the following exceptions of the treatment level that included Fluoracil and Levamisole, the node level of patients who had more than 4 positive lymph nodes, and the long time interval level between initial surgery to registering for the study, all of the other covariates' levels had 95% confidence intervals which contained the baseline $1$. This suggests that the most significant levels of covariates in their effect on the hazard rate of the recurrence of colon cancer are Levamisole + Fluoracil as a treatment, over 4 positive lymph nodes, spread of cancer to the contiguous structures, and a long time between initial surgery to registration for the study is the best fit for the recurrence data.
+
+
+
 
 # Counting Process Model:
 
@@ -267,206 +271,56 @@ death_data = death_data %>%
 
 # The two subsets are then combined by the id covariate from earlier. They are then arranged in order of id. The recurrence_time covariate, established in the joining process, is removed as it's just a helper variable. Finally, the start covariate is mutated in the case where the subject does not have a recurrence of colon cancer but passes away instead.
 
+
+# matching id, if two rows have different stop time, then code it as episode 1 and episode 2 otherwise code it as episode 1
 colon_counting = bind_rows(recurrence_data, death_data) %>% 
   arrange(id) %>% 
   select(-recurrence_time) %>% 
   mutate(start = if_else(start == stop, 0, start))
+
 
 ```
 
 
 Now the colon dataset counts the time between the beginning to the first recurrence, the time between the recurrence to the next recurrence or death. 
 
-Then we checked if the Cox Proportional Hazards assumption was violated or not in terms of the treatment covariate.
-
-This is checked through a survival plot of the curves using the "cloglog" value for the fun parameter and a plot of the coxzph test.
-
-If the p-value for the coxzph test for the treatment covariate is less than $0.05$, then the cox proportional hazards model is not ok.
+However, the goal of the counting process model is to examine the effect of the treatments before recurrence and after recurrence. To do this, a new *episode* covariate must be created. If a given subject experienced a recurrence of colon cancer and died during the study, then they would have both an episode of 0 & episode of 1 for the respective rows. The same would apply if their death was censored/outside of the study. However, if a subject did not have a recurrence of colon cancer but passed away in the study, then they would only have two episodes of 1, but the first row would be deleted. In the possibility that a patient didn't have a recurrence of colon cancer and their death was censored, there would be two episodes of 0, but the first row would remain.
 
 ```{r}
-counting_obj = coxph(Surv(start, stop, status) ~ rx, data = colon_counting)
-counting_fit = survfit(counting_obj, newdata = data.frame(rx= c("Obs", "Lev", "Lev+5FU")))
-ggsurvplot(counting_fit, data = colon_counting, fun = "cloglog", conf.int = FALSE, title = "Comparison of Survival Functions for Different Treatments", xlab = "Time until Recurrence or Death from Colon Cancer (days)", ylab = "Survival Probability")
-
-counting_gof_test = cox.zph(counting_obj, transform = "identity")
-
-plot(counting_gof_test)
+# Recurrence + Death and Recurrence + Censored Death are achieved in the first two cases.
+# Censored Recurrence + Death is achieved in the third case
+# Censored Recurrence + Censored Death is achieved in the last case
+colon_counting = colon_counting %>% 
+  group_by(id) %>% 
+  mutate(episode = case_when(
+    (diff(stop) != 0 & etype == 1) ~ 0,
+    (diff(stop) != 0 & etype == 2) ~ 1,
+    (diff(stop) == 0 & diff(status) != 0) ~ 1,
+    (diff(stop) == 0 & diff(status) == 0) ~ 0))
+  
 ```
-The curvature of the function is not monotonically increasing as time increases, so the Schoenfeld residuals are not related to survival time. Therefore, the PH assumption does hold for the *rx* covariate for the merged dataset.
-
-Next, a cox proportional hazards model of this dataset will be constructed with the new time variables in the Survival object. Then, AIC + forward selection will find the most significant covariates for this model.
-
-Similar to the AIC process for the marginal model for the recurrence data, the study covariate will not be included. However, the *id* covariate will be included, but as a cluster in order to compress multiple *id* rows that have the same *id* into one subject/*id*.
 
 ```{r}
-# Level 1:
-# list of covariates to put into the models
-colon_covariates = c("obstruct", "adhere", "nodes", "node4", "differ", "extent", "surg", "perfor", "sex", "age")
+# Rows are kept if they fall in one of three conditions: 
+#If the difference in the stop times is not equal to 0 -> 
+# Recurrence + Death & Recurrence + Censored Death
+#If the differences for both stop times and statuses are equal to 0 ->
+# Censored Recurrence + Censored Death
+#If the difference for stop times is equal to 0 and the difference for statuses
+# is not equal to 0 -> Censored Recurrence + Death
 
-# building a model per covariate by pasting the given covariate into the formula
-
-# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
-
-colon_models = map(colon_covariates, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + ", v)), data = colon_counting)) |> set_names(colon_covariates)
-
-colon_aic_lvl1 = map_dbl(colon_models, AIC) |>
-  sort()
-
-colon_aic_lvl1
+colon_counting = colon_counting %>% 
+  group_by(id) %>% 
+  filter((diff(stop) != 0) | (diff(status) == 0 & diff(stop) == 0 & etype == 1) | (diff(status) != 0 & diff(stop) == 0 & etype == 2))
 
 ```
 
-The model with the *node4* covariate, the binary variable for whether the patient had more than 4 positive lymph nodes, had the lowest AIC.
-
-Since the *nodes* covariate and *node4* covariate are closely related, the *nodes* covariate will be skipped.
-
-Therefore, forward selection proceeds with the above covariate.
+Now that the counting process model is fully setup, it can be evaluated to see if it violates the cox proportional hazards assumption. The covariates from the marginal model will be included. Because of the episode covariate, the interaction between its levels and the treatment covariate will be tested.
 
 ```{r}
-# Level 2:
-# list of covariates to put into the models
-colon_covariates2 = c("obstruct", "adhere", "differ", "extent", "surg", "perfor", "sex", "age")
-
-# building a model per covariate by pasting the given covariate into the formula
-
-# the set_names function helps to clear up which AIC value corresponds to which model when performing the AIC function
-
-colon_models2 = map(colon_covariates2, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + ", v)), data = colon_counting)) |> set_names(colon_covariates2)
-
-colon_aic_lvl2 = map_dbl(colon_models2, AIC) |>
-  sort()
-
-colon_aic_lvl2
+summary(coxph(Surv(start,stop,status) ~ strata(episode)*rx + strata(extent) + strata(surg) + strata(node4) + differ + obstruct, data = colon_counting))
 
 ```
-The model with the *extent* covariate, the description of the local spread of the tumor, had the lowest AIC.
+From the summary, it can be seen that there is a significant effect of the treatment on the time after the recurrence as the p-value is $8.17e-06$, much lower than the critical value of $\alpha = 0.05$.
 
-Therefore, forward selection proceeds with the above covariate.
-
-```{r}
-# Level 3:
-# Construct a list of covariates to put into the models:
-colon_covariates3 = c("obstruct", "adhere", "differ", "surg", "perfor", "sex", "age")
-
-# Build a model per covariate by pasting the given covariate into the formula.
-
-# The set_names function helps to clarify up which AIC value corresponds to which model when performing the AIC function.
-
-colon_models3 = map(colon_covariates3, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + ", v)), data = colon_counting)) |> set_names(colon_covariates3)
-
-colon_aic_lvl3 = map_dbl(colon_models3, AIC) |>
-  sort()
-
-colon_aic_lvl3
-
-```
-The model with the *surg* covariate, the time from initial surgery to registration in the study, had the lowest AIC.
-
-Therefore, forward selection proceeds with the above covariate.
-
-```{r}
-# Level 4:
-# Construct a list of covariates to put into the models:
-colon_covariates4 = c("obstruct", "adhere", "differ",  "perfor", "sex", "age")
-
-# Build a model per covariate by pasting the given covariate into the formula.
-
-# The set_names function helps to clarify up which AIC value corresponds to which model when performing the AIC function.
-
-colon_models4 = map(colon_covariates4, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + ", v)), data = colon_counting)) |> set_names(colon_covariates4)
-
-colon_aic_lvl4 = map_dbl(colon_models4, AIC) |>
-  sort()
-
-colon_aic_lvl4
-
-```
-The model with the *adhere* covariate, the binary variable of whether the cancer had adhered to other organs, had the lowest AIC.
-
-Therefore, forward selection proceeds with the above covariate.
-
-```{r}
-# Level 5:
-# Construct a list of covariates to put into the models:
-colon_covariates5 = c("obstruct", "differ",  "perfor", "sex", "age")
-
-# Build a model per covariate by pasting the given covariate into the formula.
-
-# The set_names function helps to clarify up which AIC value corresponds to which model when performing the AIC function.
-
-colon_models5 = map(colon_covariates5, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + adhere + ", v)), data = colon_counting)) |> set_names(colon_covariates5)
-
-colon_aic_lvl5 = map_dbl(colon_models5, AIC) |>
-  sort()
-
-colon_aic_lvl5
-
-```
-
-The model with the *obstruct* covariate, the binary variable for whether the cancer had adhered to other organs, had the lowest AIC.
-
-Therefore, forward selection proceeds with the above covariate.
-
-```{r}
-# Level 6:
-# Construct a list of covariates to put into the models:
-colon_covariates6 = c("differ",  "perfor", "sex", "age")
-
-# Build a model per covariate by pasting the given covariate into the formula.
-
-# The set_names function helps to clarify up which AIC value corresponds to which model when performing the AIC function.
-
-colon_models6 = map(colon_covariates6, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + adhere + obstruct + ", v)), data = colon_counting)) |> set_names(colon_covariates6)
-
-colon_aic_lvl6 = map_dbl(colon_models6, AIC) |>
-  sort()
-
-colon_aic_lvl6
-
-```
-The model with the *differ* covariate, the description of the removed cancer cells from the colon, had the lowest AIC.
-
-Therefore, forward selection proceeds with the above covariate.
-
-```{r}
-# Level 7:
-# Construct a list of covariates to put into the models:
-colon_covariates7 = c("perfor", "sex", "age")
-
-# Build a model per covariate by pasting the given covariate into the formula.
-
-# The set_names function helps to clarify up which AIC value corresponds to which model when performing the AIC function.
-
-colon_models7 = map(colon_covariates7, \(v) coxph(as.formula(paste("Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + adhere + obstruct + differ + ", v)), data = colon_counting)) |> set_names(colon_covariates7)
-
-colon_aic_lvl7 = map_dbl(colon_models7, AIC) |>
-  sort()
-
-colon_aic_lvl7
-
-```
-
-None of the models at this level have an AIC lower than the previous model, so the counting process model after AIC criterion has the following covariates, besides treatment and id: *node4*, *extent*, *surg*, *adhere*, *obstruct*, and *differ*
-
-
-Next, the model was summarized in order to conclude relationships between the different levels of covariates, such as the treatment covariate and the differentiation covariate.
-
-```{r}
-summary(coxph(Surv(start, stop, status) ~ rx + cluster(id) + node4 + extent + surg + adhere + obstruct + differ, data = recurrence_data))
-```
-
-From the likelihood ratio test, the p-value is less than $2e-16$, which is much less than the critical value/significance level of $0.05$. 
-
-The hazard rate for patients who took the treatment with just Levamisole is $2.208\%$ less hazardous than taking no treatment at all. Those who took Fluoracil in addition to Levamisole benefited with a hazard ratio of $0.6062$, $39.38\%$ less hazardous than no treatment at all.
-
-Patients who had more than 4 positive lymph nodes had over double the hazard rate of those who didn't.
-
-As the spread of the tumor developed from muscles to contiguous structures, the hazard ratio to those who only had submucosa development increased to as high as $3.3764$ times as likely to suffer a recurrence of colon cancer.
-
-Patients with a long time from their initial surgery to registration in the study had a 25% greater hazard rate than those with a shorter time interval.
-
-Patients whose removed cancer cells were "moderately differentiated" had a $3.86\%$ lower hazard rate than patients whose cancer cells were "well differentiated", while those with "poorly differentiated" cells had $28.41\%$ higher hazard rate compared to same base group.
-
-Patients whose colons were obstructed by a tumor had a $23.37\%$ higher hazard rate compared to those who were obstruction-free.
-
-With the following exceptions of the treatment level that included Fluoracil and Levamisole, the node level of patients who had more than 4 positive lymph nodes, and the long time interval level between initial surgery to registering for the study, all of the other covariates' levels had 95% confidence intervals which contained the baseline $1$. This suggests that the most significant levels of covariates in their effect on the hazard rate of either recurrence or death from colon cancer are Levamisole + Fluoracil as a treatment, over 4 positive lymph nodes, spread of cancer to the contiguous structures, and a long time between initial surgery to registration for the study is the best fit for the data as a whole.
+The second level of the *obstruct* covariate, *obstruct1*, also had a significant effect 
