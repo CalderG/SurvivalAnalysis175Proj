@@ -657,7 +657,8 @@ colon_counting = colon_counting %>%
 Now that the counting process model is fully setup, it can be evaluated to see if it violates the cox proportional hazards assumption. The covariates from the marginal model will be included. Because of the episode covariate, the interaction between its levels and the treatment covariate will be tested.
 
 ```{r}
-summary(coxph(Surv(start,stop,status) ~ rx*strata(episode) + strata(node4) + extent + surg, data = colon_counting))
+summary(coxph(Surv(start,stop,status) ~ rx*strata(episode) + strata(node4) + 
+                extent + surg, data = colon_counting))
 ```
 
 From the summary, the model as a whole with the additional interaction between the given episode of colon cancer (time after recurrence vs time before recurrence) and the treatment covariate is statistically significant at a p-value of $8e-08$ vs $\alpha = 0.05$ for the critical value. 
