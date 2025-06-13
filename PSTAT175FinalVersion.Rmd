@@ -171,7 +171,7 @@ Most of the decay in the survival probability for the Kaplan-Meier curve occurs 
 The thick density of tick marks after approximately 1750 days suggest that many subjects were censored, either passing away after the study or dropping out before the study concluded.
 
 ## Proportional Hazard Model for Recurrence
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 recurrence_obj = coxph(Surv(time, status) ~ rx, data = recurrence_data)
 recurrence_fit = survfit(recurrence_obj,
                          newdata = data.frame(rx= c("Obs", "Lev", "Lev+5FU")))
@@ -183,7 +183,7 @@ ggsurvplot(recurrence_fit, data = recurrence_data,
            legend.title = "Treatment",
            legend.lab = levels(recurrence_data$rx))
 ```
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 # Median Survival Time for each Treatment
 recurrence_cox_median = surv_median(recurrence_fit)
 recurrence_cox_median$strata <- c("Obs", "Lev", "Lev+5FU")
@@ -210,7 +210,7 @@ greatest drop in AIC compared to previous model.
 For the AIC tests, the covariates `study` and `id` were not included. The `id` covariate is the same as the observation number, it does not have contextual significance to the event of relapse or death from colon cancer. The `study` covariate is not included as all of the subjects are from the same study. Then 
 the list of covariates put into the models and compute its AIC would be `obstruct`, `adhere`, `nodes`, `node4`, `differ`, `extent`, `surg`, `perfor`, `sex`, `age`. 
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 # Level 1:
 # Construct a list of covariates to put into the models:
 recurrence_covariates = c("obstruct", "adhere", "nodes", "node4", "differ", 
@@ -383,7 +383,7 @@ many individuals were censored alive at the later stage of the study, which is
 common because it is hard to follow-up for a long period. 
 
 ## Proportional Hazard Model for Death
-```{r, out.width= "80%", fig.align = 'center', out.width = "80%", echo=FALSE}
+```{r, out.width= "80%", fig.align = 'center', out.width = "80%", echo=TRUE}
 # Coxph model with rx(treatment) as covariate
 cox_death <- coxph(Surv(time, status) ~ rx, data = colon_death)
 # Create fit for different treatment
@@ -437,7 +437,7 @@ increase the survival probability of patient.
 
 ## Model Selection Using AIC
 The cox proportional hazard model for death event applied forward step-wise selection driven by AIC and selected extra covariate based the on the same process in recurrence event. And the model tested the same list of covariate in the recurrence event. 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 # 1st Covariate
 # List of Covariate to test
 uni_vars <- c("obstruct", "adhere", "nodes", "node4", "differ",
@@ -656,6 +656,7 @@ colon_counting = colon_counting %>%
 
 Now that the counting process model is fully setup, it can be evaluated to see if it violates the cox proportional hazards assumption. The covariates from the marginal model will be included. Because of the episode covariate, the interaction between its levels and the treatment covariate will be tested.
 
+
 ```{r}
 summary(coxph(Surv(start,stop,status) ~ rx*strata(episode) + strata(node4) + 
                 extent + surg, data = colon_counting))
@@ -671,11 +672,10 @@ does not include $1$, the combination therapy can significantly reduce the hazar
 However, the significant interaction term \textit{rxLev+5FU:strata(episode)episode=1} 
 ($95\%$ CI: $1.4876-2.932$) shows this advantage disappears in the second episode which 
 means after the recurrence (combined $HR=0.5973*2.0885\approx1.25$). And \textit{Lev} alone has hazard ratio $0.9273$ reducing the hazard rate by $7.27\%$ compared to the `obs`. But such an effect is not significant in either episode. That is because the $95\%$ confidence intervals before and after recurrence are ($0.7472$, $1.151$) and ($0.9121$, $1.698$), which include $1$. 
+Combining the interaction term 
 \item \textit{extent}: As the spread of the tumor developed from muscles to continguous structures, the hazard ratio to those who only had submucosa development increased to as high as $2.7274$ times as likely to suffer a recurrence of colon cancer.
 \item \textit{surg}: Patients with a long time from their initial surgery to registration in the study had a $16.06\%$ greater hazard rate than those with a shorter time interval.
 \end{itemize}
-
-The main takeaway from the summary above is the combination of both Levamisole and Fluoracil has a statistically significant effect in reducing the hazard rate of a recurrence of colon cancer. Once the patient has had a recurrence of colon cancer, taking only Levamisole has a statistically insignificant effect on the hazard rate of dying from colon cancer, while the combination of drugs actually has a statistically significant effect on increasing the hazard rate of dying from colon cancer after a recurrence compared to not taking a treatment. Additionally, it's relevant to note that the extent of the spread of colon cancer to serosa & contiguous structures, along with the time from initial surgery to registration into the study, are statistically significant factors in the hazard rate for a given patient from dying or experiencing a recurrence of colon cancer. In short, the combination of Levamisole and Fluoracil appears effective at reducing the hazard rate of recurrence of colon cancer in patients, but patients should look for other treatments should they experience a recurrence anyway.
 
 # Proptional Hazards Assumption
 To verify that the Cox models we use are valid, we assessed the proportional-hazards 
@@ -781,6 +781,12 @@ cox.zph(revised_death)
 After deleting `differ` and stratifying `node4`, the output of `cox.zph` for 
 revised cox proportional hazard model of recurrence shows that all covariates, 
 `extent`, `surg`, and `rx`, satisfy the PH assumption. 
+
+# Conclusion
+
+The results from the marginal and counting process models found that the combination of both Levamisole and Fluoracil has a statistically significant effect in reducing the hazard rate of a recurrence or death from colon cancer. In the marginal model for the deaths from colon cancer, the hazard ratio for the combined treatment was $0.689$, so patients who took this combined treatment of Levamisole and Fluoracil were $31\%$ less likely to die from colon cancer compared to patients who took no treatment at all. The 95% confidence interval for the true hazard ratio between the combined treatment and no treatment levels was ($0.54$, $0.874$). In the marginal model for the recurrences from colon cancer, the hazard ratio for the combined treatment was $0.6107$, so patients who took this combined treatment of Levamisole and Fluoracil were $\approx 39\%$ less likely to experience a recurrence of colon cancer compared to patients who took no treatment at all. The 95% confidence interval for the true hazard ratio between the combined treatment and no treatment levels was ($0.4811$, $0.7752$).
+In the counting process model for all of the observations of colon cancer, recurrences plus deaths, the hazard ratio for the combined treatment was $0.5973$, so patients who took this combined treatment of Levamisole and Fluoracil were $\approx 40\%$ less likely to experience a recurrence or death from colon cancer compared to patients who took no treatment at all. The 95% confidence interval for the true hazard ratio between the combined treatment and no treatment levels was ($0.4707$, $0.758$).
+
 
 
 # References
